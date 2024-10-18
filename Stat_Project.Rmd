@@ -1,0 +1,928 @@
+---
+title: "Stat Project Draft Pre-Processing"
+author: "Christine Nguyen and Salisa Almeida"
+date: "2024-04-10"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## Data Loading and Cleaning
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+theme_set(theme_bw())
+
+df <- read.csv("Real_Estate_Conveyance_Tax_by_Town_20240410.csv")
+df |>
+  glimpse()
+```
+What are all our columns?
+
+```{r}
+column_list <- colnames(df)
+column_list
+```
+
+Which columns have missing values?
+
+```{r}
+colSums(is.na(df))
+```
+Removing columns missing 75% of data.
+
+```{r}
+# 75% of the data is missing in these columns so we will not impute them
+# imputing would create a big bias so we remove the columns
+df <- df |>
+  select(-Consideration.for.Residential.Dwelling.Between..800k..2.5M,
+         -Tax.on.Consideration.Between..800k..2.5M.Residential.Dwelling, 
+         -Consideration.for.Residential.Dwelling.Over..2.5M.Threshold,
+         -Tax.on.Consideration.Over..2.5M.Threshold.Residential.Dwelling)
+
+head(df)
+```
+
+now we look at missing rows for Town.Code
+
+```{r}
+# double checking town code missing values by rows
+rows_with_missing_values <- which(!complete.cases(df$Town.Code))
+
+df[rows_with_missing_values, ]
+```
+
+
+```{r}
+# town code does not actually have missing values, it is just coded differently.
+# data dictionary says "Town Unknown" is coded as 000 
+# "All Municipalities" had no code so I created 170 as the largest code is 169
+# fill in Town.Code based on conditions
+df <- df %>%
+  mutate(Town.Code = case_when(
+    Municipality == "ALL MUNICIPALITIES" ~ "170",
+    Municipality == "TOWN UNKNOWN" ~ "0",
+    TRUE ~ as.character(Town.Code)  # Keep the original value for other cases
+  ))
+
+head(df)
+```
+
+```{r}
+colSums(is.na(df))
+```
+
+creating column that shows which rows have been imputed by mean with the columns missing 25% of values
+```{r}
+df$Imputed <- ifelse(is.na(df$Consideration.for.Residential.Dwelling.Over.Threshold) | is.na(df$Tax.on.Consideration.Over.Threshold.Residential.Dwelling), 1, 0)
+
+```
+
+What are the means of the two columns with 25% missing values?
+
+```{r}
+# these columns only have 513 missing values so we will impute with mean, 25% missing
+mean(df$Consideration.for.Residential.Dwelling.Over.Threshold, na.rm = TRUE)
+mean(df$Tax.on.Consideration.Over.Threshold.Residential.Dwelling, na.rm = TRUE)
+```
+
+implement the mean imputation for these two columns: Imputing with mean for 2 columns missing only 25% of data.
+
+```{r}
+df <- df |>
+  mutate(Consideration.for.Residential.Dwelling.Over.Threshold =
+           ifelse(is.na(Consideration.for.Residential.Dwelling.Over.Threshold),
+                  mean(Consideration.for.Residential.Dwelling.Over.Threshold, na.rm = TRUE),
+                  Consideration.for.Residential.Dwelling.Over.Threshold))
+
+df <- df |>
+  mutate(Tax.on.Consideration.Over.Threshold.Residential.Dwelling =
+           ifelse(is.na(Tax.on.Consideration.Over.Threshold.Residential.Dwelling),
+                  mean(Tax.on.Consideration.Over.Threshold.Residential.Dwelling, na.rm = TRUE),
+                  Tax.on.Consideration.Over.Threshold.Residential.Dwelling))
+
+colSums(is.na(df))
+```
+
+
+## Data Exploration
+
+```{r, fig.width=16, fig.height=20}
+par(mfrow = c(9, 2))
+
+# first 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[1:10, "Municipality"] 
+
+plot1 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[11:20, "Municipality"] 
+
+# Plot with legend trimming
+plot2 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[21:30, "Municipality"] 
+
+# Plot with legend trimming
+plot3 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[31:40, "Municipality"] 
+
+# Plot with legend trimming
+plot4 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[41:50, "Municipality"] 
+
+# Plot with legend trimming
+plot5 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[51:60, "Municipality"] 
+
+# Plot with legend trimming
+plot6 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[61:70, "Municipality"] 
+
+# Plot with legend trimming
+plot7 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[71:80, "Municipality"] 
+
+# Plot with legend trimming
+plot8 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[81:90, "Municipality"] 
+
+# Plot with legend trimming
+plot9 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[91:100, "Municipality"] 
+
+# Plot with legend trimming
+plot10 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[101:110, "Municipality"] 
+
+# Plot with legend trimming
+plot11 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[111:120, "Municipality"] 
+
+# Plot with legend trimming
+plot12 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[121:130, "Municipality"] 
+
+# Plot with legend trimming
+plot13 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[131:140, "Municipality"] 
+
+# Plot with legend trimming
+plot14 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[141:150, "Municipality"] 
+
+# Plot with legend trimming
+plot15 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[151:160, "Municipality"] 
+
+# Plot with legend trimming
+plot16 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+# next 10 municipals
+group_municipalities <- df %>%
+  count(Municipality) %>%
+  arrange(desc(n)) %>%
+  .[161:171, "Municipality"] 
+
+# Plot with legend trimming
+plot17 <- df %>%
+  filter(Municipality %in% group_municipalities) %>%
+  mutate(log_total_consideration = log(Total.Consideration.for.Taxable.Conveyances),
+         Fiscal.Year_numeric = as.numeric(substring(Fiscal.Year, 4, 7))) %>%
+  ggplot(aes(x = Fiscal.Year_numeric, y = log_total_consideration, color = Municipality)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Fiscal Year",
+       y = "Natural Logarithm of Total Consideration for Taxable Conveyances",
+       color = "Municipality")
+
+grid.arrange(plot1, plot2, 
+             plot3, plot4,
+             plot5, plot6,
+             nrow = 3)
+grid.arrange(plot7, plot8,
+             plot9, plot10,
+             plot11, plot12,
+             nrow = 3)
+grid.arrange(plot13, plot14,
+             plot15, plot16,
+             plot17, nrow = 3)
+```
+
+```{r, fig.width=16, fig.height=20} 
+par(mfrow = c(3, 1))
+
+plot_amount <- df |>
+  group_by(Fiscal.Year) |>
+  ggplot(aes(x = Total.Amount.Due, y = Fiscal.Year)) +
+  geom_col() +
+  labs(x = "Total Amount Due",
+       y = "Fiscal Year",
+       title = "Total Amount Due by Fiscal Year")
+
+plot_consideration <- df |>
+  group_by(Fiscal.Year) |>
+  ggplot(aes(x = Total.Consideration.for.Taxable.Conveyances, y = Fiscal.Year)) +
+  geom_col() +
+  labs(x = "Total Consideration for Taxable Conveyances",
+       y = "Fiscal Year",
+       title = "Total Consideration for Taxable Conveyances by Fiscal Year")
+
+plot_compare <- df %>%
+  group_by(Fiscal.Year) %>%
+  summarise(Total_Consideration = sum(Total.Consideration.for.Taxable.Conveyances),
+            Total_Amount_Due = sum(Total.Amount.Due)) %>%
+  pivot_longer(cols = c(Total_Consideration, Total_Amount_Due), names_to = "Variable", values_to = "Value") %>%
+  ggplot(aes(x = Value, y = Fiscal.Year, fill = Variable)) +
+  geom_col(position = "dodge", width = 0.5) +
+  labs(x = "Value",
+       y = "Fiscal Year",
+       title = "Comparison of Total Consideration and Total Amount Due by Fiscal Year",
+       fill = "Variable")
+
+grid.arrange(plot_amount,
+             plot_consideration,
+             plot_compare, nrow = 3)
+```
+
+graph on deliquent mortgage for comparisons against all other variables
+
+```{r}
+df |>
+  ggplot(aes(x = Delinquent.Mortgage.Conveyance)) +
+  geom_point(aes(y = Total.Consideration.for.Taxable.Conveyances, color = "Total Consideration for Taxable Conveyances")) +
+  geom_point(aes(y = Total.Amount.Due, color = "Total Amount Due")) +
+  geom_point(aes(y = Total.Consideration.for.Residential.Dwelling, color = "Total Consideration for Residential Dwelling")) +
+  geom_point(aes(y = Residential.Property.Other.Than.Dwelling, color = "Residential Property Other Than Dwelling")) +
+  geom_point(aes(y = Nonresidential.Property.Other.Than.Unimproved.Land, color = "Nonresidential Property Other Than Unimproved Land")) +
+  labs(x = "Delinquent Mortgage Conveyance", 
+       y = "Values", 
+       title = "Comparison of Delinquent Mortgage Conveyance Against Other Variables") +
+  scale_color_manual(name = "Variables", 
+                     values = c("blue", "red", "green", "orange", "purple"),
+                     labels = c("Total Consideration for Taxable Conveyances",
+                                "Total Amount Due",
+                                "Total Consideration for Residential Dwelling",
+                                "Residential Property Other Than Dwelling",
+                                "Nonresidential Property Other Than Unimproved Land"))
+```
+
+heat correlation map to see correlation between all variables, diagonal is going from bottom left to top right.
+
+```{r, fig.width=15, fig.height=15}
+library(corrplot)
+
+# Select numeric variables
+numeric_df <- df[, sapply(df, is.numeric)]
+numeric_df <- numeric_df |>
+  select(-Imputed)
+
+# Calculate correlation matrix
+correlation_matrix <- cor(numeric_df)
+
+# Plot correlation matrix as a heatmap
+data = reshape2::melt(correlation_matrix)
+data |>
+  ggplot() +
+  geom_tile(aes(Var2, Var1, fill = value), color = "white") + # Add white border around tiles
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0, limits = c(-1,1)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        panel.grid.major = element_line(color = "gray", size = 0.5)) + # Add gray grid lines
+  labs(title = "Correlation Matrix", x = "", y = "") +
+  coord_fixed()
+```
+
+graph on all variables' values by fiscal year
+```{r, fig.width=14, fig.height=10}
+# Select numeric variables and exclude 'Municipality' and 'Imputed' columns
+numeric_df <- df %>%
+  select(-Municipality, -Imputed) %>%
+  select_if(is.numeric)
+
+numeric_df$Fiscal.Year <- df$Fiscal.Year
+
+tidy_df <- numeric_df %>%
+  gather(key = "Variable", value = "Value", -Fiscal.Year)
+
+# Calculate average by fiscal year and variable
+average_df <- tidy_df %>%
+  group_by(Fiscal.Year, Variable) %>%
+  summarize(Average = mean(Value))
+
+# Plot line plot
+ggplot(average_df, aes(x = Fiscal.Year, y = Average, color = Variable, group = Variable)) +
+  geom_line(size=1) +
+  geom_point(size=3) +
+  labs(title = "Average of Each Variables by Fiscal Year",
+       x = "Fiscal Year",
+       y = "Average Value")
+```
+
+
+# NEW PART HERE SALISA
+## Data Preprocessing
+
+### Our target variable: Total.Consideration.for.Taxable.Conveyances
+so we remove total.amount.due because it shows high correlation and similarity in technicality
+```{r}
+model_df <- df |>
+  dplyr::select(!c(Total.Amount.Due))
+```
+### PCA as we see high correlation and redundant information.
+```{r}
+pca <- model_df |>
+  dplyr::select(!c(Fiscal.Year, Town.Code, Municipality, Imputed, Total.Consideration.for.Taxable.Conveyances)) |>
+  prcomp(scale = TRUE)
+
+pca$rotation
+```
+
+```{r}
+library(broom)
+pca |>
+  tidy(matrix = "pcs")
+```
+
+```{r}
+model_loadings <- pca |>
+  tidy(matrix = "loadings")
+
+model_variances <- pca |>
+  tidy(matrix = "pcs")
+
+model_loadings |>
+  filter(PC <=4) |>
+  ggplot(aes(y = column,
+             x = value)) +
+  geom_col(aes(y = column)
+           ) + 
+  facet_wrap(~PC)
+```
+
+```{r}
+model_variances |>
+  ggplot(aes(x = factor(PC),
+             y = percent)) + 
+  geom_col()
+```
+WE WILL CHOOSE PC1, PC2, PC3 and PC 4 which in total explain 99.049% of variability on a bases across different models. For the same model, like linear regression for example, we may test different PC values like one with 4 and another with 6.
+
+# Modeling
+data splitting 75% training 25% test
+```{r}
+library(tidymodels)
+set.seed(1)
+
+# remove imputed column
+
+new_df <- model_df |>
+  dplyr::select(!c(Imputed))
+
+model_split <- new_df |>
+  initial_split(prop = 0.75,
+                strata = Total.Consideration.for.Taxable.Conveyances)
+
+model_split
+```
+
+```{r}
+model_train <- model_split |>
+  training()
+
+model_test <- model_split |>
+  testing()
+
+model_train |>
+  count()
+
+model_test |> 
+  count()
+```
+
+# Model 1: Linear Regression with basic 4 PC
+
+```{r}
+consideration_parsnip_1 <- linear_reg() |> 
+  set_mode("regression") |>
+  set_engine("lm")
+
+consideration_recipe_1 <- recipe(Total.Consideration.for.Taxable.Conveyances ~ .,
+                       data = model_train)
+
+consideration_recipe_1 <- consideration_recipe_1 |> 
+  step_normalize(all_numeric_predictors()) |>
+  step_pca(all_numeric_predictors(), 
+           num_comp = 4) |>
+  step_dummy(all_nominal_predictors())
+```
+
+```{r}
+consideration_workflow_1 <- workflow() |>
+  add_model(consideration_parsnip_1) |>
+  add_recipe(consideration_recipe_1)
+```
+
+# Model 2: Linear Regression with 6 PC
+
+```{r}
+consideration_recipe_2 <- recipe(Total.Consideration.for.Taxable.Conveyances ~ .,
+                       data = model_train)
+
+consideration_recipe_2 <- consideration_recipe_2 |> 
+  step_normalize(all_numeric_predictors()) |>
+  step_pca(all_numeric_predictors(), 
+           num_comp = 6) |>
+  step_dummy(all_nominal_predictors())
+```
+
+```{r}
+consideration_workflow_2 <- workflow() |>
+  add_model(consideration_parsnip_1) |>
+  add_recipe(consideration_recipe_2)
+```
+
+# Model 3, Regular Linear regression with no pca for comparison
+
+```{r}
+consideration_workflow_3 <- workflow() |>
+  add_model(consideration_parsnip_1) |>
+  add_formula(Total.Consideration.for.Taxable.Conveyances ~ .)
+```
+
+# Model 4: KNN with 4 PCA
+```{r}
+library(kknn)
+consideration_parsnip_2 <- nearest_neighbor() |> 
+  set_mode("regression") |>
+  set_engine("kknn", 
+             neighbors = 5)
+
+consideration_recipe_4 <- recipe(Total.Consideration.for.Taxable.Conveyances ~ .,
+                       data = model_train)
+
+consideration_recipe_4 <- consideration_recipe_4 |> 
+  step_normalize(all_numeric_predictors()) |>
+  step_pca(all_numeric_predictors(), 
+           num_comp = 4) |>
+  step_dummy(all_nominal_predictors())
+
+consideration_workflow_4 <- workflow() |>
+  add_model(consideration_parsnip_2) |>
+  add_recipe(consideration_recipe_4)
+```
+
+# Model 5: Knn on all for comparison
+
+```{r}
+library(kknn)
+
+consideration_workflow_5 <- workflow() |>
+  add_model(consideration_parsnip_2) |>
+  add_formula(Total.Consideration.for.Taxable.Conveyances ~ .)
+```
+
+# Model 6: Random forest with 4 PCA
+```{r}
+library(ranger)
+consideration_parsnip_3 <- rand_forest() |> 
+  set_mode("regression") |>
+  set_engine("ranger")
+
+consideration_recipe_6 <- recipe(Total.Consideration.for.Taxable.Conveyances ~ .,
+                       data = model_train)
+
+consideration_recipe_6 <- consideration_recipe_6 |> 
+  step_normalize(all_numeric_predictors()) |>
+  step_pca(all_numeric_predictors(), 
+           num_comp = 4) |>
+  step_dummy(all_nominal_predictors())
+```
+
+```{r}
+consideration_workflow_6 <- workflow() |>
+  add_model(consideration_parsnip_3) |>
+  add_recipe(consideration_recipe_6)
+```
+
+# Model 7: Random forest with all 
+```{r}
+consideration_workflow_7 <- workflow() |>
+  add_model(consideration_parsnip_3) |>
+  add_formula(Total.Consideration.for.Taxable.Conveyances ~ .)
+```
+
+# Tibble of workflows
+```{r}
+workflow_names <- c("lm_4PC", 
+                 "lm_6PC",
+                 "lm",
+                 "knn_4PC",
+                 "knn",
+                 "rf_4PC",
+                 "rf")
+
+workflow_objects <- list(consideration_workflow_1,
+                         consideration_workflow_2,
+                         consideration_workflow_3,
+                         consideration_workflow_4,
+                         consideration_workflow_5,
+                         consideration_workflow_6,
+                         consideration_workflow_7)
+
+workflows_tbl <- tibble(work_names = workflow_names,
+                        work_objects = workflow_objects)
+
+workflows_tbl
+```
+
+# fitting
+```{r}
+set.seed(1)
+workflows_tbl <- workflows_tbl |>
+  rowwise() |>
+  mutate(fits = list(fit(work_objects, 
+                         model_train)))
+
+workflows_tbl
+```
+
+```{r}
+workflows_tbl <- workflows_tbl |>
+  mutate(predictions = list(predict(fits,
+                                    model_test)))
+
+workflows_tbl
+```
+
+# plotting versus truth
+```{r}
+predictions_tbl  <- workflows_tbl |>
+  select(work_names, 
+         predictions) |>
+  unnest(cols = c(predictions))
+
+predictions_tbl <- predictions_tbl |>
+  cbind(Total.Consideration.for.Taxable.Conveyances = model_test |>
+          pull(Total.Consideration.for.Taxable.Conveyances))
+```
+
+```{r}
+predictions_tbl |>
+ ggplot(aes(x = Total.Consideration.for.Taxable.Conveyances, 
+            y = .pred)) +
+  geom_point(alpha = 0.2) +
+  facet_wrap(~work_names, nrow = 2) +
+  geom_abline(slope = 1, linetype = "dotted", color = "red") +
+  coord_obs_pred() # a special coordinate function from the tidymodels family
+```
+
+# metric table
+```{r}
+consideration_metrics <- metric_set(yardstick::rmse,
+                          yardstick::rsq_trad, 
+                          yardstick::mae)
+predictions_tbl |>
+  group_by(work_names) |>
+  consideration_metrics(truth = Total.Consideration.for.Taxable.Conveyances, 
+              estimate = .pred)
+```
+
+# all combined metrics
+```{r}
+predictions_metrics <- predictions_tbl |>
+  group_by(work_names) |>
+  consideration_metrics(truth = Total.Consideration.for.Taxable.Conveyances, estimate = .pred)
+
+predictions_metrics
+```
+
+```{r}
+predictions_metrics  |> 
+  ggplot(aes(y = work_names, 
+             x = .estimate, 
+             fill = work_names)) + 
+  geom_col() +
+  facet_wrap(~.metric, 
+             scales = "free_x")
+```
+lm nott missing, just super small
+
+# uncertainty quantification: bootstrap
+```{r}
+set.seed(1)
+
+pc_workflows_tbl <- workflows_tbl |>
+  filter(grepl("PC", work_names)) #choosing only PC models because multicollinearity issue for boostrap
+
+bootstrap_set <- model_train  |>
+  bootstraps(times = 5)
+
+workflows_bootstrap <- pc_workflows_tbl |>
+  mutate(fits = list(fit_resamples(work_objects,
+                                         bootstrap_set,
+                                         metrics = consideration_metrics))) |>
+  mutate(metrics = list(collect_metrics(fits)))
+
+workflows_bootstrap
+```
+
+
+```{r}
+workflows_boot_results <- workflows_bootstrap |>
+  select(work_names,
+         metrics) |>
+  unnest(metrics) |>
+  select(work_names,
+         mean) |>
+  arrange(work_names)
+
+workflows_boot_results
+```
+
+# uncertainty quantification: held out test set
+```{r}
+set.seed(1)
+val_set <- validation_split(model_train, 
+                            prop = 0.75, 
+                            strata = Total.Consideration.for.Taxable.Conveyances)
+
+val_set |>
+  class()
+```
+
+```{r}
+workflows_val <- workflows_tbl |>
+  mutate(fits = list(fit_resamples(work_objects,
+                                   val_set,
+                                   metrics = consideration_metrics))) |>
+  mutate(metrics = list(collect_metrics(fits)))
+
+workflows_val
+```
+
+```{r}
+workflows_val |>
+  select(c(work_names,
+           metrics)) |>
+  unnest(metrics) |>
+  arrange(.metric)
+```
+
+```{r}
+workflows_val |>
+  select(c(work_names,
+           metrics)) |>
+  unnest(metrics)
+```
+
+rsq_trad not missing, just super small
+
+```{r}
+workflows_val |>
+  select(c(work_names,
+           metrics)) |>
+  unnest(metrics) |>
+  ggplot(aes(y = work_names,
+             fill = work_names,
+             x = mean)) +
+  geom_col() +
+  facet_wrap(~.metric,
+             nrow = 3) #rsq_trad not missing, just super small
+```
+
+# Add ons we used:
+
+* Perform Principal Component Analysis
+* Impute missing data
+* Make use of a list column during your analysis
+* Make a github repository for your project (share the link with me)
+* Include more than one form of uncertainty quantification from the bulleted list.
+
+
+
+
+
